@@ -1,50 +1,63 @@
-import streamlit as st
-from llm_utils import generate_response
+from flask import Flask, request, jsonify
 
-st.set_page_config(page_title="🤝 AI Negotiator Bot", layout="centered")
+# -------------------
+# Simple Buyer Agent Logic (Placeholder)
+# Replace with your real Concordia YourBuyerAgent class
+# -------------------
+class BuyerAgent:
+    def __init__(self, name):
+        self.name = name
 
-st.title("🤝 AI Negotiator Bot")
-st.markdown("""
-This AI agent simulates a **negotiation between a buyer and a seller** over a given product using a large language model (LLM).
-""")
+    def get_counter_offer(self, product, offer_price):
+        # Example: Always counter 10 less if above 50
+        if offer_price > 50:
+            return offer_price - 10
+        return offer_price
 
-# --- Product input
-product = st.text_input("🔍 Enter a product name to negotiate:", "")
+# Create Flask app and BuyerAgent instance
+app = Flask(__name__)
+buyer_bot = BuyerAgent(name="Data Analyst Buyer")
 
-if product:
-    with st.spinner("🧠 Predicting market price..."):
-        market_price = generate_response(
-            f"You are a pricing expert. Estimate the average market price (in ₹) for this product:\n'{product}'. Respond only with a number like: 45000"
-        )
+# -------------------
+# Routes
+# -------------------
+@app.route("/")
+def home():
+    return "✅ Flask server is running! Use POST /negotiate to start a negotiation."
 
+@app.route("/negotiate", methods=["POST"])
+def negotiate():
+    """
+    Accepts JSON:
+    {
+        "product": "mangoes",
+        "offer_price": 60
+    }
+    """
+    data = request.get_json()
+
+    # Validate input
+    if not data or "product" not in data or "offer_price" not in data:
+        return jsonify({"error": "Missing required fields"}), 400
+
+    product = data["product"]
     try:
-        market_price = int(market_price)
-        st.success(f"🧠 Predicted market price: ₹{market_price}")
+        offer_price = float(data["offer_price"])
     except ValueError:
-        st.error("❌ Could not determine a valid market price.")
-        st.stop()
+        return jsonify({"error": "Invalid offer_price"}), 400
 
-    st.markdown(f"### 📦 Negotiating for **{product}**")
+    # Get counter-offer from Buyer Agent
+    counter_offer = buyer_bot.get_counter_offer(product, offer_price)
 
-    # --- Buyer Message
-    buyer_offer = int(market_price * 0.85)
-    buyer_msg = generate_response(
-        f"You are a buyer. Product: '{product}' (Market Price: ₹{market_price}). Start negotiation with ₹{buyer_offer}."
-    )
-    st.markdown(f"#### 🟢 Buyer:")
-    st.info(buyer_msg)
+    return jsonify({
+        "product": product,
+        "original_offer": offer_price,
+        "counter_offer": counter_offer,
+        "message": f"{buyer_bot.name} suggests {counter_offer} for {product}"
+    })
 
-    # --- Seller Message (fixed prompt)
-    seller_msg = generate_response(
-        f"You are a seller. Product: '{product}' (Market Price: ₹{market_price}).\n"
-        f"Buyer offered ₹{buyer_offer}. If the offer is close to or above ₹{int(market_price * 0.85)}, accept by saying: 'I accept your offer of ₹{buyer_offer}'.\n"
-        "Otherwise, give a counter-offer slightly higher."
-    )
-    st.markdown(f"#### 🔴 Seller:")
-    st.success(seller_msg)
-
-    # --- Final outcome
-    if "I accept" in seller_msg:
-        st.markdown("✅ **Deal closed successfully!**")
-    else:
-        st.markdown("🔁 **Negotiation continues...**")
+# -------------------
+# Run Server
+# -------------------
+if __name__ == "__main__":
+    app.run(debug=True)
